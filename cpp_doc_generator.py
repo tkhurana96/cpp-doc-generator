@@ -7,25 +7,24 @@ class tags(Enum):
     FUNCTION = 'function'
     CLASS = 'class'
     NAMESPACE = 'namespace'
+    CONSTRUCT = 'construct'
 
 
 class comments:
-    # COMMENT_TAG = "=" * 10 + "COMMENT" + "=" * 10
 
     def __init__(self, comment_lines):
         self.comment_lines = comment_lines
+        pre_processed_comments = []
+        for each_line in self.comment_lines:
+            each_line = each_line.strip('*/ \t\n')
+            if each_line:
+                pre_processed_comments.append(each_line)
+        self.comment_lines = pre_processed_comments
 
     def process(self):
         '''
         Process the comments and retrieve info from them
         '''
-        # print(self.COMMENT_TAG)
-        processed_comments = []
-        for each_line in self.comment_lines:
-            each_line = each_line.strip('*/ \t\n')
-            if each_line:
-                processed_comments.append(each_line)
-        self.comment_lines = processed_comments
         temp = ''.join(self.comment_lines).split('@')
         properties = dict()
 
@@ -36,13 +35,16 @@ class comments:
             properties['access'] = temp[2][temp[2].find(' ') + 1:]
         elif temp[1][:first_space_pos] == tags.FUNCTION.value:
             properties['is_what'] = tags.FUNCTION.value
+        elif temp[1][:first_space_pos] == tags.CONSTRUCT.value:
+            properties['is_what'] = tags.CONSTRUCT.value
         else:
             return False
 
-        if properties['is_what'] == tags.METHOD.value or properties['is_what'] == tags.FUNCTION.value:
+        if properties['is_what'] == tags.METHOD.value or properties['is_what'] == tags.FUNCTION.value or properties['is_what'] == tags.CONSTRUCT.value:
             properties['params'] = []
+            properties['returns'] = None
             for each_portion in temp:
-
+                # TODO: Add code for desc block too.
                 if each_portion.startswith('param'):
                     data = each_portion[each_portion.find(
                         'param') + len('param') + 1:]
@@ -51,17 +53,25 @@ class comments:
                 elif each_portion.startswith('returns'):
                     data = each_portion[each_portion.find(
                         'returns') + len('returns') + 1:]
+                    properties['returns'] = data
         return properties
+
+    def __str__(self):
+        COMMENT_TAG = "=" * 10 + "COMMENT" + "=" * 10 + '\n'
+        return self.COMMENT_TAG + '\n'.join(self.comment_lines)
 
 
 class code:
-    # CODE_TAG = "." * 10 + "CODE" + "." * 10
 
     def __init__(self, code_lines):
         self.code_lines = code_lines
 
     def process(self):
         pass
+
+    def __str__(self):
+        CODE_TAG = "." * 10 + "CODE" + "." * 10 + '\n'
+        return self.CODE_TAG + '\n'.join(self.code_lines)
 
 
 class segment:
@@ -70,34 +80,27 @@ class segment:
         temp_comm = comments(comment_lines)
         res = temp_comm.process()
         if res is not False:
-            return segment
-            self.__comm = temp_comm
-            self.__code = code(code_lines)
-            self.is_what = res['is_what']
-            if self.is_what == tags.FUNCTION.value or self.is_what == tags.METHOD.value:
-                if self.is_what == tags.METHOD.value:
-                    self.access = res['access']
-                self.params = res['params']
-                self.ret_val = res['returns']
+            return object.__new__(segment)
         else:
             return None
 
     def __init__(self, comment_lines, code_lines):
-        pass
-        # self.__comm = comments(comment_lines)
-        # self.__code = code(code_lines)
-        # res = self.__comm.process()
-        # if res is not False:
-        #     self.is_what = res['is_what']
-        #     if self.is_what == tags.FUNCTION.value or self.is_what == tags.METHOD.value:
-        #         if self.is_what == tags.METHOD.value:
-        #             self.access = res['access']
-        #         self.params = res['params']
-        #         self.ret_val = res['returns']
+        self.__comm = comments(comment_lines)
+        self.__code = code(code_lines)
+        res = self.__comm.process()
+        print(" res is: ", res)
+        self.is_what = res['is_what']
+        if self.is_what == tags.FUNCTION.value or self.is_what == tags.METHOD.value or self.is_what == tags.CONSTRUCT.value:
+            if self.is_what == tags.METHOD.value:
+                self.access = res['access']
+            self.params = res['params']
+            self.ret_val = res['returns']
 
-# class composite_segment():
-#     # TODO: maintain a collection of segments
-#     pass
+    def __str__(self):
+        return self.__comm.__str__() + "\n" + self.__code.__str__()
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class parser():
@@ -138,7 +141,7 @@ class parser():
 
         # TODO: Remove any blank line from the file
         # TODO: Parse file char by char instead of line by line
-
+        self.segments = []
         comm_start = None
         comm_end = None
         comm_and_open_paren = []
@@ -186,6 +189,7 @@ class parser():
 
 
 if __name__ == "__main__":
+
     arg_parser = argparse.ArgumentParser(description="Cpp doc generator")
     arg_parser.add_argument(
         "-f", nargs='+', required=True, metavar="file_names", dest="files")
@@ -195,5 +199,5 @@ if __name__ == "__main__":
     for each_file in src_files:
         segments = p.parse(each_file)
         print("segments for file: ", each_file, "are: ")
-        # for each_segment in segments:
-        #     print("segments for file: ", each_file, "are: ", each_segment)
+        for each_segment in segments:
+            print(each_segment)
