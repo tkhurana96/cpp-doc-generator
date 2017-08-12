@@ -1,25 +1,26 @@
 import argparse
 from enum import Enum
+from os.path import basename, splitext
 
 
 class tags(Enum):
-    METHOD = 'method'
-    FUNCTION = 'function'
+    METH = 'method'
+    FUNC = 'function'
     CLASS = 'class'
     NAMESPACE = 'namespace'
-    CONSTRUCT = 'construct'
+    CTOR = 'construct'
 
 
 class comments:
 
     def __init__(self, comment_lines):
-        self.comment_lines = comment_lines
-        pre_processed_comments = []
-        for each_line in self.comment_lines:
+        self.comment_lines = []
+        for each_line in comment_lines:
             each_line = each_line.strip('*/ \t\n')
             if each_line:
-                pre_processed_comments.append(each_line)
-        self.comment_lines = pre_processed_comments
+                self.comment_lines.append(each_line)
+        print("comments: ", ''.join(self.comment_lines).split('@'))
+        input()
 
     def process(self):
         '''
@@ -28,19 +29,31 @@ class comments:
         temp = ''.join(self.comment_lines).split('@')
         properties = dict()
 
-        # INFO: FOR NOW PARSING ONLY METHODS AND FUNCS
+        # TODO: For each_Value in enum: for each_value in temp:
+        # check whether each_value starts with each_Value if it
+        # does then execute parsing rules stored in a function for
+        # that each_Value
+
+        # for each_string in temp:
+        #     if each_string:
+        #         if each_string.startswith(tags.FUNC.value):
+        #             properties['is_what'] = tags.FUNC.value
+        #             properties['name'] = each_string.split(' ')[1]
+        #         elif each_string.startswith(tags.METH.value):
+        #             properties['is_what'] = tags.METH.value
+        # INFO: FOR NOW PARSING ONLY METHS AND FUNCS
         first_space_pos = temp[1].find(' ')
-        if temp[1][:first_space_pos] == tags.METHOD.value:
-            properties['is_what'] = tags.METHOD.value
+        if temp[1][:first_space_pos] == tags.METH.value:
+            properties['is_what'] = tags.METH.value
             properties['access'] = temp[2][temp[2].find(' ') + 1:]
-        elif temp[1][:first_space_pos] == tags.FUNCTION.value:
-            properties['is_what'] = tags.FUNCTION.value
-        elif temp[1][:first_space_pos] == tags.CONSTRUCT.value:
-            properties['is_what'] = tags.CONSTRUCT.value
+        elif temp[1][:first_space_pos] == tags.FUNC.value:
+            properties['is_what'] = tags.FUNC.value
+        elif temp[1][:first_space_pos] == tags.CTOR.value:
+            properties['is_what'] = tags.CTOR.value
         else:
             return False
 
-        if properties['is_what'] == tags.METHOD.value or properties['is_what'] == tags.FUNCTION.value or properties['is_what'] == tags.CONSTRUCT.value:
+        if properties['is_what'] == tags.METH.value or properties['is_what'] == tags.FUNC.value or properties['is_what'] == tags.CTOR.value:
             properties['params'] = []
             properties['returns'] = None
             for each_portion in temp:
@@ -58,7 +71,7 @@ class comments:
 
     def __str__(self):
         COMMENT_TAG = "=" * 10 + "COMMENT" + "=" * 10 + '\n'
-        return self.COMMENT_TAG + '\n'.join(self.comment_lines)
+        return COMMENT_TAG + '\n'.join(self.comment_lines)
 
 
 class code:
@@ -71,12 +84,13 @@ class code:
 
     def __str__(self):
         CODE_TAG = "." * 10 + "CODE" + "." * 10 + '\n'
-        return self.CODE_TAG + '\n'.join(self.code_lines)
+        # return CODE_TAG + '\n'.join(self.code_lines)
+        return ''.join(self.code_lines)
 
 
 class segment:
 
-    def __new__(segment, comment_lines, code_lines):
+    def __new__(segment, comment_lines, code_lines, file_name):
         temp_comm = comments(comment_lines)
         res = temp_comm.process()
         if res is not False:
@@ -84,17 +98,49 @@ class segment:
         else:
             return None
 
-    def __init__(self, comment_lines, code_lines):
+    def __init__(self, comment_lines, code_lines, file_name):
         self.__comm = comments(comment_lines)
         self.__code = code(code_lines)
+        self.__file_name = splitext(basename(file_name))[0] + ".md"
         res = self.__comm.process()
-        print(" res is: ", res)
+        # print(" res is: ", res)
         self.is_what = res['is_what']
-        if self.is_what == tags.FUNCTION.value or self.is_what == tags.METHOD.value or self.is_what == tags.CONSTRUCT.value:
-            if self.is_what == tags.METHOD.value:
+        if self.is_what == tags.FUNC.value or self.is_what == tags.METH.value or self.is_what == tags.CTOR.value:
+            if self.is_what == tags.METH.value:
                 self.access = res['access']
             self.params = res['params']
             self.ret_val = res['returns']
+
+    def generate_md(self):
+        # NOTE: This is only for functions, methods, ctors.
+        # TODO: Needed {function name}, {func desc}, {prototype},
+        # {list of parameters where there is a sublist for each parameter with it's
+        #  type name and description}, {list of return values where there is a sublist
+        # for each return value with it's type name and description}
+        md_string = '''
+## FUNCTION NAME TO BE FILLED HERE
+
+FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WILL BE WRITTEN. FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC W. FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WE WRITTEN.FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WILL BE WRITTEN
+
+```
+{code}
+```
+
+### PARAMETERS:
+| NAME | TYPE | DESCRIPTION |
+|------|------|-------------|
+| PARAM_NAME_1 | TYPE_NAME_1 | DESC_NAME_1 |
+| PARAM_NAME_1 | TYPE_NAME_1 | DESC_NAME_1 |
+
+### RETURN VALUE
+| NAME | TYPE | DESCRIPTION |
+|------|------|-------------|
+| RET_VAL_1 | TYPE_NAME_1 | DESC_NAME_1 |
+| RET_VAL_1 | TYPE_NAME_1 | DESC_NAME_1 |
+        '''.format(code=self.__code)
+        print("self.__file_name is: ", self.__file_name)
+        with open(self.__file_name, 'a') as md:
+            md.write(md_string)
 
     def __str__(self):
         return self.__comm.__str__() + "\n" + self.__code.__str__()
@@ -104,9 +150,9 @@ class segment:
 
 
 class parser():
+    # TODO: Make segments list static instead of being class member
     def __init__(self):
         self.segments = []
-        # self.file_name = file_name
 
     def __order_segments(self, segments_list):
         # segments_list is supposed to be a list of triplets of integers like this:
@@ -181,7 +227,7 @@ class parser():
             for each_segment in self.segments:
                 comm = src[each_segment[0]: each_segment[1] + 1]
                 code = src[each_segment[1] + 1: each_segment[2] + 1]
-                obj = segment(comm, code)
+                obj = segment(comm, code, file_name)
                 if obj is not None:
                     temp.append(obj)
             self.segments = temp
@@ -198,6 +244,7 @@ if __name__ == "__main__":
     p = parser()
     for each_file in src_files:
         segments = p.parse(each_file)
-        print("segments for file: ", each_file, "are: ")
+        # print("segments for file: ", each_file, "are: ")
         for each_segment in segments:
-            print(each_segment)
+            each_segment.generate_md()
+            # print(each_segment)
