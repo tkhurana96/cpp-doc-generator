@@ -1,14 +1,6 @@
 import argparse
-from enum import Enum
-from os.path import basename, splitext
-
-
-class tags(Enum):
-    METH = 'method'
-    FUNC = 'function'
-    CLASS = 'class'
-    NAMESPACE = 'namespace'
-    CTOR = 'construct'
+from os.path import basename, splitext, isdir, abspath, join, isfile
+from os import getcwd, remove
 
 
 class comments:
@@ -19,55 +11,98 @@ class comments:
             each_line = each_line.strip('*/ \t\n')
             if each_line:
                 self.comment_lines.append(each_line)
-        print("comments: ", ''.join(self.comment_lines).split('@'))
-        input()
 
-    def process(self):
+    def get_properties(self):
         '''
-        Process the comments and retrieve info from them
+        Process the comments and retrieve info from them.
+        FOR NOW ONLY FUNCTIONS, METHODS OR CTORS WILL BE PARSED.
         '''
         temp = ''.join(self.comment_lines).split('@')
-        properties = dict()
-
-        # TODO: For each_Value in enum: for each_value in temp:
-        # check whether each_value starts with each_Value if it
-        # does then execute parsing rules stored in a function for
-        # that each_Value
-
-        # for each_string in temp:
-        #     if each_string:
-        #         if each_string.startswith(tags.FUNC.value):
-        #             properties['is_what'] = tags.FUNC.value
-        #             properties['name'] = each_string.split(' ')[1]
-        #         elif each_string.startswith(tags.METH.value):
-        #             properties['is_what'] = tags.METH.value
-        # INFO: FOR NOW PARSING ONLY METHS AND FUNCS
-        first_space_pos = temp[1].find(' ')
-        if temp[1][:first_space_pos] == tags.METH.value:
-            properties['is_what'] = tags.METH.value
-            properties['access'] = temp[2][temp[2].find(' ') + 1:]
-        elif temp[1][:first_space_pos] == tags.FUNC.value:
-            properties['is_what'] = tags.FUNC.value
-        elif temp[1][:first_space_pos] == tags.CTOR.value:
-            properties['is_what'] = tags.CTOR.value
-        else:
+        comment_start = temp[1].split(' ')[0]
+        if comment_start != "method" and comment_start != "function" and comment_start != "construct":
             return False
-
-        if properties['is_what'] == tags.METH.value or properties['is_what'] == tags.FUNC.value or properties['is_what'] == tags.CTOR.value:
-            properties['params'] = []
-            properties['returns'] = None
-            for each_portion in temp:
-                # TODO: Add code for desc block too.
-                if each_portion.startswith('param'):
-                    data = each_portion[each_portion.find(
-                        'param') + len('param') + 1:]
-                    properties['params'].append(data)
-
-                elif each_portion.startswith('returns'):
-                    data = each_portion[each_portion.find(
-                        'returns') + len('returns') + 1:]
-                    properties['returns'] = data
-        return properties
+        else:
+            properties = dict({
+                'desc': None,
+                'is_what': None,
+                'access': None,
+                'name': None,
+                'params': [],
+                'returns': [],
+                'throws': []
+            })
+            for each_line in temp:
+                if each_line:
+                    line_tag = "Line -> " + each_line
+                    try:
+                        if each_line.startswith("method") or each_line.startswith("func") or each_line.startswith("construct"):
+                            if properties['is_what'] is None:
+                                is_what, name = each_line.split(' ')
+                                properties['is_what'] = is_what
+                                properties['name'] = name
+                            else:
+                                raise Exception(
+                                    "Invalid comment.. @func or @method or @construct tag found again in a single comment", line_tag)
+                        elif each_line.startswith("access"):
+                            if properties['access'] is None:
+                                parsed_access = each_line.split(' ')
+                                if len(parsed_access) == 2:
+                                    properties['access'] = parsed_access[1]
+                                else:
+                                    raise Exception(
+                                        "Invalid comment.. access val not specified with @access tag", line_tag)
+                            else:
+                                raise Exception(
+                                    "Invalid comment.. @access tag found again in a single comment", line_tag)
+                        elif each_line.startswith("desc"):
+                            if properties['desc'] is None:
+                                firstSpacePos = each_line.find(' ')
+                                desc = each_line[firstSpacePos + 1:]
+                                properties['desc'] = desc
+                            else:
+                                raise Exception(
+                                    "Invalid comment.. @desc tag found again in a single comment", line_tag)
+                        elif each_line.startswith("param"):
+                            openParenPos = each_line.find('{')
+                            closeParenPos = each_line.find('}')
+                            if openParenPos < 0 or closeParenPos < 0:
+                                raise Exception(
+                                    "Invalid comment.. @param '{' or '}' missing", line_tag)
+                            else:
+                                parsed_param = []
+                                type_name = each_line[openParenPos +
+                                                      1:closeParenPos]
+                                parsed_param.append(type_name)
+                                name_and_desc = each_line[closeParenPos +
+                                                          2:].split(' ', 1)
+                                if len(name_and_desc) != 2:
+                                    raise Exception(
+                                        "Invalid comment.. @param tag takes 3 values", line_tag)
+                                else:
+                                    parsed_param.extend(name_and_desc)
+                                    parsed_param[0], parsed_param[1] = parsed_param[1], parsed_param[0]
+                                    properties['params'].append(
+                                        parsed_param)
+                        elif each_line.startswith("returns"):
+                            openParenPos = each_line.find('{')
+                            closeParenPos = each_line.find('}')
+                            if openParenPos < 0 or closeParenPos < 0:
+                                raise Exception(
+                                    "Invalid comment.. @returns '{' or '}' missing", line_tag)
+                            else:
+                                parsed_ret = []
+                                type_name = each_line[openParenPos +
+                                                      1:closeParenPos]
+                                parsed_ret.append(type_name)
+                                desc = each_line[closeParenPos + 2:]
+                                parsed_ret.append(desc)
+                                properties['returns'].append(parsed_ret)
+                        else:
+                            raise Exception(
+                                "Invalid comment.. Line starting with unknown tag found", line_tag)
+                    except Exception:
+                        raise Exception(line_tag)
+            return properties
 
     def __str__(self):
         COMMENT_TAG = "=" * 10 + "COMMENT" + "=" * 10 + '\n'
@@ -77,68 +112,93 @@ class comments:
 class code:
 
     def __init__(self, code_lines):
-        self.code_lines = code_lines
+        self.code_lines = ''.join(code_lines)
 
-    def process(self):
-        pass
+    def get_properties(self):
+        '''
+        Process the code and retrieve info from them.
+        FOR NOW THIS ONLY RETURNS THE PROTOTYPE OF FUNCS, METHS, CTORS.
+        '''
+        firstParenPos = self.code_lines.find('{')
+        firstSemiColPos = self.code_lines.find(';')
+        if firstParenPos > 0 and firstSemiColPos > 0:
+            firstEncountered = min(firstParenPos, firstSemiColPos)
+        elif firstParenPos > 0 and firstSemiColPos < 0:
+            firstEncountered = firstParenPos
+        elif firstParenPos < 0 and firstSemiColPos > 0:
+            firstEncountered = firstSemiColPos
+        else:
+            raise Exception(
+                "Invalid code.. No ';' or '{' encountered while extracting function prototype, ", self.code_lines)
+        return self.code_lines[:firstEncountered]
 
     def __str__(self):
         CODE_TAG = "." * 10 + "CODE" + "." * 10 + '\n'
-        # return CODE_TAG + '\n'.join(self.code_lines)
-        return ''.join(self.code_lines)
+        return CODE_TAG + self.code_lines
 
 
 class segment:
 
-    def __new__(segment, comment_lines, code_lines, file_name):
+    def __new__(segment, comment_lines, code_lines, file_name, dest_dir):
+        # This __new__ method only allows object creation if comm.getproperties
+        # does not return False i.e. the segment object will only be constructed
+        # if segment is of function/method/constructor.
         temp_comm = comments(comment_lines)
-        res = temp_comm.process()
+        res = temp_comm.get_properties()
         if res is not False:
             return object.__new__(segment)
         else:
             return None
 
-    def __init__(self, comment_lines, code_lines, file_name):
+    def __init__(self, comment_lines, code_lines, file_name, dest_dir):
         self.__comm = comments(comment_lines)
         self.__code = code(code_lines)
-        self.__file_name = splitext(basename(file_name))[0] + ".md"
-        res = self.__comm.process()
-        # print(" res is: ", res)
-        self.is_what = res['is_what']
-        if self.is_what == tags.FUNC.value or self.is_what == tags.METH.value or self.is_what == tags.CTOR.value:
-            if self.is_what == tags.METH.value:
-                self.access = res['access']
-            self.params = res['params']
-            self.ret_val = res['returns']
+        self.__file_name = join(
+            dest_dir, splitext(basename(file_name))[0] + ".md")
+        try:
+            self.prop = self.__comm.get_properties()
+            self.prop['protoype'] = self.__code.get_properties()
+        except:
+            raise
 
     def generate_md(self):
-        # NOTE: This is only for functions, methods, ctors.
-        # TODO: Needed {function name}, {func desc}, {prototype},
-        # {list of parameters where there is a sublist for each parameter with it's
-        #  type name and description}, {list of return values where there is a sublist
-        # for each return value with it's type name and description}
-        md_string = '''
-## FUNCTION NAME TO BE FILLED HERE
 
-FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WILL BE WRITTEN. FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC W. FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WE WRITTEN.FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WILL BE WRITTEN
+        temp_prop = self.prop
+        if temp_prop['params']:
+            header = '''| NAME | TYPE | DESCRIPTION |
+|------ | ------ | -------------|
+'''
+            param_str = str()
+            for each_list in temp_prop['params']:
+                param_str += ('|' + '|'.join(each_list) + '|\n')
+            temp_prop['params'] = header + param_str
+
+        if temp_prop['returns']:
+            header = '''|TYPE | DESCRIPTION |
+|------|-------------|
+'''
+            ret_str = str()
+            for each_list in temp_prop['returns']:
+                ret_str += ('|' + '|'.join(each_list) + '|\n')
+            temp_prop['returns'] = header + ret_str
+
+        md_string = '''
+## **{name}**
+
+{desc}
 
 ```
-{code}
+{protoype}
 ```
 
 ### PARAMETERS:
-| NAME | TYPE | DESCRIPTION |
-|------|------|-------------|
-| PARAM_NAME_1 | TYPE_NAME_1 | DESC_NAME_1 |
-| PARAM_NAME_1 | TYPE_NAME_1 | DESC_NAME_1 |
-
+{params}
 ### RETURN VALUE
-| NAME | TYPE | DESCRIPTION |
-|------|------|-------------|
-| RET_VAL_1 | TYPE_NAME_1 | DESC_NAME_1 |
-| RET_VAL_1 | TYPE_NAME_1 | DESC_NAME_1 |
-        '''.format(code=self.__code)
-        print("self.__file_name is: ", self.__file_name)
+{returns}
+
+
+___
+        '''.format(**self.prop)
         with open(self.__file_name, 'a') as md:
             md.write(md_string)
 
@@ -150,9 +210,6 @@ FUNCTION DESCRIPTION HERE, THIS IS THE PLACE WHERE DESC OF A FUNC WILL BE WRITTE
 
 
 class parser():
-    # TODO: Make segments list static instead of being class member
-    def __init__(self):
-        self.segments = []
 
     def __order_segments(self, segments_list):
         # segments_list is supposed to be a list of triplets of integers like this:
@@ -183,11 +240,11 @@ class parser():
 
         return core_order_segments(0)
 
-    def parse(self, file_name):
+    def parse(self, file_name, dest_dir):
 
         # TODO: Remove any blank line from the file
         # TODO: Parse file char by char instead of line by line
-        self.segments = []
+        segments_found = []
         comm_start = None
         comm_end = None
         comm_and_open_paren = []
@@ -206,7 +263,7 @@ class parser():
                 if not(comm_start is not None and comm_end is None):
                     if ';' in line:
                         if comm_start is not None and comm_end is not None:
-                            self.segments.append(
+                            segments_found.append(
                                 (comm_start, comm_end, comm_end + 1))
                             comm_start = None
                             comm_end = None
@@ -220,31 +277,46 @@ class parser():
                     if '}' in line:
                         possible_match = comm_and_open_paren.pop()
                         if possible_match[0] is not None and possible_match[1] is not None:
-                            self.segments.append(
+                            segments_found.append(
                                 (possible_match[0], possible_match[1], line_num,))
 
             temp = []
-            for each_segment in self.segments:
+            for each_segment in segments_found:
                 comm = src[each_segment[0]: each_segment[1] + 1]
                 code = src[each_segment[1] + 1: each_segment[2] + 1]
-                obj = segment(comm, code, file_name)
+                obj = segment(comm, code, file_name, dest_dir)
                 if obj is not None:
                     temp.append(obj)
-            self.segments = temp
-        return self.segments
+            segments_found = temp
+        return segments_found
 
 
 if __name__ == "__main__":
 
-    arg_parser = argparse.ArgumentParser(description="Cpp doc generator")
-    arg_parser.add_argument(
-        "-f", nargs='+', required=True, metavar="file_names", dest="files")
-    src_files = arg_parser.parse_args().files
+    try:
+        arg_parser = argparse.ArgumentParser(description="Cpp doc generator")
+        arg_parser.add_argument(
+            "-f", nargs='+', required=True, metavar="file_names", dest="files")
+        arg_parser.add_argument(
+            "-d", required=False, metavar="destination directory", dest="dest_dir", default=getcwd(), type=str)
+        src_files = arg_parser.parse_args().files
+        dest_dir = abspath(arg_parser.parse_args().dest_dir)
 
-    p = parser()
-    for each_file in src_files:
-        segments = p.parse(each_file)
-        # print("segments for file: ", each_file, "are: ")
-        for each_segment in segments:
-            each_segment.generate_md()
-            # print(each_segment)
+        if isdir(dest_dir):
+            # Remove all existing md files for input files at destination directory
+            for each_file in src_files:
+                output_to_be = join(
+                    dest_dir, splitext(basename(each_file))[0] + ".md")
+                print("Removing old..", output_to_be)
+                if isfile(output_to_be):
+                    remove(output_to_be)
+            p = parser()
+            for each_file in src_files:
+                segments = p.parse(each_file, dest_dir)
+                for each_segment in segments:
+                    each_segment.generate_md()
+            print("Markdowns Generted")
+        else:
+            raise Exception("Given destination is not a directory")
+    except:
+        raise
