@@ -1,6 +1,6 @@
 import argparse
-from os.path import basename, splitext, isdir, abspath, join, isfile
-from os import getcwd, remove
+from os.path import basename, splitext, isdir, abspath, join
+from os import getcwd
 
 
 class comments:
@@ -147,7 +147,7 @@ class code:
 
 class segment:
 
-    def __new__(segment, comment_lines, code_lines, file_name, dest_dir):
+    def __new__(segment, comment_lines, code_lines):
         # This __new__ method only allows object creation if comm.getproperties
         # does not return False i.e. the segment object will only be constructed
         # if segment is of function/method/constructor.
@@ -158,11 +158,9 @@ class segment:
         else:
             return None
 
-    def __init__(self, comment_lines, code_lines, file_name, dest_dir):
+    def __init__(self, comment_lines, code_lines):
         self.__comm = comments(comment_lines)
         self.__code = code(code_lines)
-        self.__file_name = join(
-            dest_dir, splitext(basename(file_name))[0] + ".md")
         try:
             self.prop = self.__comm.get_properties()
             self.prop['prototype'] = self.__code.get_properties()
@@ -177,7 +175,6 @@ class segment:
     def generate_md(self):
 
         md_string = str()
-        
         md_string += "## **{name}**\n\n".format(**self.prop)
         
         if self.prop['desc'] is not None:
@@ -209,11 +206,7 @@ class segment:
             md_string += ret_str
             
         md_string += '\n___\n'
-
-        with open(self.__file_name, 'a') as md:
-            md.write(md_string)
-        
-        # return md_string
+        return md_string
 
     def __str__(self):
         return self.__comm.__str__() + "\n" + self.__code.__str__()
@@ -253,7 +246,7 @@ class parser():
 
         return core_order_segments(0)
 
-    def parse(self, file_name, dest_dir):
+    def parse(self, file_name):
 
         # TODO: Remove any blank line from the file
         # TODO: Parse file char by char instead of line by line
@@ -297,7 +290,7 @@ class parser():
             for each_segment in segments_found:
                 comm = src[each_segment[0]: each_segment[1] + 1]
                 code = src[each_segment[1] + 1: each_segment[2] + 1]
-                obj = segment(comm, code, file_name, dest_dir)
+                obj = segment(comm, code)
                 if obj is not None:
                     temp.append(obj)
             segments_found = temp
@@ -316,23 +309,14 @@ if __name__ == "__main__":
         dest_dir = abspath(arg_parser.parse_args().dest_dir)
 
         if isdir(dest_dir):
-            # Remove all existing md files for input files at destination directory
-            for each_file in src_files:
-                output_to_be = join(
-                    dest_dir, splitext(basename(each_file))[0] + ".md")
-                print("Removing old..", output_to_be)
-                if isfile(output_to_be):
-                    remove(output_to_be)
             p = parser()
             for each_file in src_files:
-                # output_md_file = join(dest_dir, splitext(basename(each_file))[0] + ".md")
-                # print("output_md_file is", output_md_file)
-                segments = p.parse(each_file, dest_dir)
-                # with open(output_md, 'w') as each_file_output:
-                for each_segment in segments:
-                    md = each_segment.generate_md()
-                    # print("returned md string is:", md)
-                    # each_file_output.write(md)
+                output_md_file = join(dest_dir, splitext(basename(each_file))[0] + ".md")
+                segments = p.parse(each_file)
+                with open(output_md_file, 'w') as each_file_output:
+                    for each_segment in segments:
+                        md = each_segment.generate_md()
+                        each_file_output.write(md)
             print("Markdowns Generted")
         else:
             raise Exception("Given destination is not a directory")
