@@ -1,3 +1,5 @@
+#! /usr/bin/env python3.5
+
 import argparse
 from os.path import basename, splitext, isdir, abspath, join
 from os import getcwd
