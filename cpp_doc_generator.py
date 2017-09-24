@@ -7,10 +7,18 @@ class comments:
 
     def __init__(self, comment_lines):
         self.comment_lines = []
+        temp_buffer = str()
         for each_line in comment_lines:
             each_line = each_line.strip('*/ \t\n')
             if each_line:
-                self.comment_lines.append(each_line)
+                if each_line.startswith('@'):
+                    if temp_buffer:
+                        self.comment_lines.append(temp_buffer)
+                    temp_buffer = each_line
+                else:
+                    temp_buffer += ' ' + each_line
+        if temp_buffer:
+            self.comment_lines.append(temp_buffer)
 
     def get_properties(self):
         '''
@@ -157,50 +165,55 @@ class segment:
             dest_dir, splitext(basename(file_name))[0] + ".md")
         try:
             self.prop = self.__comm.get_properties()
-            self.prop['protoype'] = self.__code.get_properties()
+            self.prop['prototype'] = self.__code.get_properties()
+            first_non_whitespace_pos = len(self.prop['prototype']) - len(self.prop['prototype'].lstrip())
+            if self.prop['prototype'].startswith("inline", first_non_whitespace_pos):
+                before_inline_part = self.prop['prototype'][:first_non_whitespace_pos]
+                after_inline_part = self.prop['prototype'][first_non_whitespace_pos+len("inline"):]
+                self.prop['prototype'] =  before_inline_part + after_inline_part
         except:
             raise
 
     def generate_md(self):
 
-        temp_prop = self.prop
-        if temp_prop['params']:
+        md_string = str()
+        
+        md_string += "## **{name}**\n\n".format(**self.prop)
+        
+        if self.prop['desc'] is not None:
+            md_string += ">{desc}\n".format(**self.prop)
+        
+        md_string += "```\n{prototype}\n```".format(**self.prop)
+
+        if self.prop['params']:
+            md_string += '\n### PARAMETERS:\n'
             header = '''| NAME | TYPE | DESCRIPTION |
 |------ | ------ | -------------|
 '''
-            param_str = str()
-            for each_list in temp_prop['params']:
-                param_str += ('|' + '|'.join(each_list) + '|\n')
-            temp_prop['params'] = header + param_str
+            md_string += header
 
-        if temp_prop['returns']:
+            param_str = str()
+            for each_list in self.prop['params']:
+                param_str += ('|' + '|'.join(each_list) + '|\n')
+            md_string += param_str
+
+        if self.prop['returns']:
+            md_string += '\n### RETURN VALUE:\n'
             header = '''|TYPE | DESCRIPTION |
 |------|-------------|
 '''
+            md_string += header
             ret_str = str()
-            for each_list in temp_prop['returns']:
+            for each_list in self.prop['returns']:
                 ret_str += ('|' + '|'.join(each_list) + '|\n')
-            temp_prop['returns'] = header + ret_str
+            md_string += ret_str
+            
+        md_string += '\n___\n'
 
-        md_string = '''
-## **{name}**
-
-{desc}
-
-```
-{protoype}
-```
-
-### PARAMETERS:
-{params}
-### RETURN VALUE
-{returns}
-
-
-___
-        '''.format(**self.prop)
         with open(self.__file_name, 'a') as md:
             md.write(md_string)
+        
+        # return md_string
 
     def __str__(self):
         return self.__comm.__str__() + "\n" + self.__code.__str__()
@@ -298,7 +311,7 @@ if __name__ == "__main__":
         arg_parser.add_argument(
             "-f", nargs='+', required=True, metavar="file_names", dest="files")
         arg_parser.add_argument(
-            "-d", required=False, metavar="destination directory", dest="dest_dir", default=getcwd(), type=str)
+            "-d", required=False, metavar="destination directory {Default:current directory}", dest="dest_dir", default=getcwd(), type=str)
         src_files = arg_parser.parse_args().files
         dest_dir = abspath(arg_parser.parse_args().dest_dir)
 
@@ -312,9 +325,14 @@ if __name__ == "__main__":
                     remove(output_to_be)
             p = parser()
             for each_file in src_files:
+                # output_md_file = join(dest_dir, splitext(basename(each_file))[0] + ".md")
+                # print("output_md_file is", output_md_file)
                 segments = p.parse(each_file, dest_dir)
+                # with open(output_md, 'w') as each_file_output:
                 for each_segment in segments:
-                    each_segment.generate_md()
+                    md = each_segment.generate_md()
+                    # print("returned md string is:", md)
+                    # each_file_output.write(md)
             print("Markdowns Generted")
         else:
             raise Exception("Given destination is not a directory")
