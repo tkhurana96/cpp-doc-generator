@@ -110,3 +110,4 @@ Which renders like this:
 
 ![example.md](./example_md.png)
 
+*Support of `@throws` tag coming soon*
