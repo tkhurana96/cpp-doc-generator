@@ -1,4 +1,4 @@
-#! /usr/bin/env python3.5
+#! /usr/bin/env python3
 
 import argparse
 from os.path import basename, splitext, isdir, abspath, join
